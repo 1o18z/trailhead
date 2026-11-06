@@ -46,10 +46,15 @@ jobs:
 
       - name: Run scan and record proposals
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          # fork + 외부 PR 에는 사용자 PAT 가 필요. 없으면 기본 토큰으로 폴백(제안 기록만).
+          GH_PAT: ${{ secrets.GH_PAT }}
+          DEFAULT_TOKEN: ${{ github.token }}
+          # 있으면 AI 변경 생성 활성화(SDK 가 이 키를 읽음). 없으면 설명만 기록.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MAX_REPOS: ${{ github.event.inputs.max_repos }}
           MAX_PER_RUN: ${{ github.event.inputs.max_per_run }}
         run: |
+          export GITHUB_TOKEN="${GH_PAT:-$DEFAULT_TOKEN}"
           ARGS="--trailhead.mode=scan \
             --spring.main.web-application-type=none \
             --trailhead.pr.enabled=true \
@@ -59,4 +64,6 @@ jobs:
           # 수동 실행(workflow_dispatch) 시에만 규모 제한 적용, 예약 실행은 앱 기본값 사용
           [ -n "$MAX_REPOS" ] && ARGS="$ARGS --trailhead.discovery.max-repos=$MAX_REPOS"
           [ -n "$MAX_PER_RUN" ] && ARGS="$ARGS --trailhead.pr.max-per-run=$MAX_PER_RUN"
+          # API 키가 있을 때만 AI 변경 생성 켜기
+          [ -n "$ANTHROPIC_API_KEY" ] && ARGS="$ARGS --trailhead.ai.enabled=true"
           java -jar build/libs/trailhead-0.1.0.jar $ARGS
