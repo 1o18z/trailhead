@@ -192,6 +192,41 @@ class GitHubClient(private val github: RestClient) {
         null
     }
 
+    /** 레포 정보 (대상 레포 기본 브랜치 등). 없으면 null. */
+    fun getRepo(owner: String, repo: String): Repo? = try {
+        github.get()
+            .uri("/repos/{o}/{r}", owner, repo)
+            .retrieve()
+            .body(Repo::class.java)
+    } catch (e: RestClientResponseException) {
+        log.warn("getRepo 실패 [{}/{}]: {}", owner, repo, e.statusCode)
+        null
+    }
+
+    /** PR 한 건 조회(본문 포함). 없으면 null. */
+    fun getPull(owner: String, repo: String, number: Int): PullResponse? = try {
+        github.get()
+            .uri("/repos/{o}/{r}/pulls/{n}", owner, repo, number)
+            .retrieve()
+            .body(PullResponse::class.java)
+    } catch (e: RestClientResponseException) {
+        log.warn("getPull 실패 [{}/{}#{}]: {}", owner, repo, number, e.statusCode)
+        null
+    }
+
+    /** 이슈/PR 에 코멘트를 남긴다. */
+    fun addComment(owner: String, repo: String, number: Int, body: String): Boolean = try {
+        github.post()
+            .uri("/repos/{o}/{r}/issues/{n}/comments", owner, repo, number)
+            .body(mapOf("body" to body))
+            .retrieve()
+            .toBodilessEntity()
+        true
+    } catch (e: RestClientResponseException) {
+        log.warn("addComment 실패 [{}/{}#{}]: {}", owner, repo, number, e.statusCode)
+        false
+    }
+
     // ---- Phase B: 대상 레포 fork ----
 
     /**

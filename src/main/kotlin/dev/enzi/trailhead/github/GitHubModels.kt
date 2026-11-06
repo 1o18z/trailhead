@@ -94,4 +94,5 @@ data class CheckRun(
 data class PullResponse(
     val number: Int = 0,
     @JsonProperty("html_url") val htmlUrl: String = "",
+    val body: String? = null,
 )
