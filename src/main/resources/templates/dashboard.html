@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>trailhead — OSS 기여 후보</title>
+    <title>trailhead — 기여거리 제안</title>
     <style>
         :root { --bg:#0f1419; --card:#1a2029; --line:#2a323d; --text:#e6edf3; --muted:#8b96a5; --accent:#4ad295; }
         * { box-sizing: border-box; }
@@ -21,13 +21,12 @@
         tr:hover td { background:var(--card); }
         a { color:#7aa7ff; text-decoration:none; }
         a:hover { text-decoration:underline; }
-        .score { font-weight:700; font-variant-numeric:tabular-nums; }
-        .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
-        .b-AVAILABLE { background:#123524; color:#4ad295; }
-        .b-TAKEN { background:#3a3410; color:#e8c23f; }
-        .b-RISKY { background:#3d2410; color:#f29d4e; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+        .t-HIGH { background:#3d1a1a; color:#f2715e; }
+        .t-MEDIUM { background:#123524; color:#4ad295; }
+        .type { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; background:#22303d; color:#9fb4c7; }
         .repo { color:var(--muted); font-size:12px; }
-        .reasons { color:var(--muted); font-size:12px; margin:6px 0 0; padding-left:16px; }
+        .detail { color:var(--muted); font-size:12px; margin-top:6px; max-width:620px; }
         .empty { color:var(--muted); padding:40px; text-align:center; }
         .meta { color:var(--muted); font-size:12px; }
     </style>
@@ -36,51 +35,44 @@
 <header>
     <div>
         <h1><span>trail</span>head</h1>
-        <div class="sub">기여할 만한 오픈소스 이슈 — 중복·거절 PR 걸러낸 후보</div>
+        <div class="sub">오픈소스 레포에서 발굴한 기여거리 제안 (상/중만, 억지 제안 제외)</div>
     </div>
-    <form method="post" th:action="@{/discover}">
-        <button type="submit">지금 탐색 ▶</button>
+    <form method="post" th:action="@{/scan}">
+        <button type="submit">지금 스캔 ▶</button>
     </form>
 </header>
 <main>
     <div class="meta">
-        총 <span th:text="${total}">0</span>건 분석 ·
-        추천 <span th:text="${candidates.size()}">0</span>건 ·
-        제외(해결됨) <span th:text="${skippedCount}">0</span>건
+        총 <span th:text="${total}">0</span>건 · HIGH <span th:text="${high}">0</span>건
     </div>
 
-    <div th:if="${candidates.isEmpty()}" class="empty">
-        아직 후보가 없어요. 우측 상단 <b>지금 탐색</b>을 눌러주세요.
+    <div th:if="${proposals.isEmpty()}" class="empty">
+        아직 제안이 없어요. 우측 상단 <b>지금 스캔</b>을 눌러주세요.
     </div>
 
-    <table th:unless="${candidates.isEmpty()}">
+    <table th:unless="${proposals.isEmpty()}">
         <thead>
         <tr>
-            <th>점수</th>
-            <th>상태</th>
-            <th>이슈</th>
-            <th>라벨</th>
-            <th>⭐</th>
-            <th>PR(열림/거절/머지)</th>
+            <th>등급</th>
+            <th>유형</th>
+            <th>제안</th>
+            <th>저장소</th>
+            <th>근거</th>
         </tr>
         </thead>
         <tbody>
-        <tr th:each="c : ${candidates}">
-            <td class="score" th:text="${c.score}">0</td>
-            <td><span class="badge" th:classappend="'b-' + ${c.status}" th:text="${c.status}">AVAILABLE</span></td>
+        <tr th:each="p : ${proposals}">
+            <td><span class="badge" th:classappend="'t-' + ${p.tier}" th:text="${p.tier}">HIGH</span></td>
+            <td><span class="type" th:text="${p.type}">BUG_FIX</span></td>
             <td>
-                <a th:href="${c.issueUrl}" target="_blank" th:text="${c.title}">title</a>
-                <div class="repo">
-                    <a th:href="${c.repoUrl}" target="_blank" th:text="${c.repoFullName}">repo</a>
-                    #<span th:text="${c.issueNumber}">0</span> · <span th:text="${c.language}">lang</span>
-                </div>
-                <ul class="reasons">
-                    <li th:each="r : ${c.reasons}" th:text="${r}">reason</li>
-                </ul>
+                <div th:text="${p.title}">title</div>
+                <div class="detail" th:text="${p.detail}">detail</div>
             </td>
-            <td th:text="${c.matchedLabel}">label</td>
-            <td th:text="${c.stars}">0</td>
-            <td th:text="${c.openPrCount} + '/' + ${c.closedUnmergedPrCount} + '/' + ${c.mergedPrCount}">0/0/0</td>
+            <td>
+                <a th:href="${p.repoUrl}" target="_blank" th:text="${p.repoFullName}">repo</a>
+                <div class="repo">⭐<span th:text="${p.stars}">0</span> · <span th:text="${p.language}">lang</span></div>
+            </td>
+            <td><a th:href="${p.evidenceUrl}" target="_blank">보기 ↗</a></td>
         </tr>
         </tbody>
     </table>

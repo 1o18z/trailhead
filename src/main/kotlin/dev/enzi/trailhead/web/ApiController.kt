@@ -1,8 +1,8 @@
 package dev.enzi.trailhead.web
 
-import dev.enzi.trailhead.discovery.Candidate
-import dev.enzi.trailhead.discovery.CandidateRepository
-import dev.enzi.trailhead.discovery.DiscoveryService
+import dev.enzi.trailhead.proposal.Proposal
+import dev.enzi.trailhead.proposal.ProposalRepository
+import dev.enzi.trailhead.proposal.ProposalService
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -11,38 +11,38 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api")
 class ApiController(
-    private val repository: CandidateRepository,
-    private val discoveryService: DiscoveryService,
+    private val repository: ProposalRepository,
+    private val proposalService: ProposalService,
 ) {
 
-    @PostMapping("/discover")
-    fun discover(): Map<String, Any?> {
-        val result = discoveryService.discover()
+    @PostMapping("/scan")
+    fun scan(): Map<String, Any?> {
+        val result = proposalService.scan()
         return mapOf(
-            "scanned" to result.scanned,
+            "reposScanned" to result.reposScanned,
+            "rawSignals" to result.rawSignals,
+            "droppedLow" to result.droppedLow,
+            "proposalCount" to result.proposals.size,
             "reportPath" to result.reportPath,
-            "candidates" to result.candidates.map { it.toView() },
+            "proposals" to result.proposals.map { it.toView() },
         )
     }
 
-    @GetMapping("/candidates")
-    fun candidates(): List<Map<String, Any?>> =
-        repository.findAllByOrderByScoreDesc().map { it.toView() }
+    @GetMapping("/proposals")
+    fun proposals(): List<Map<String, Any?>> =
+        repository.findAllByOrderByTierAscStarsDesc().map { it.toView() }
 
-    private fun Candidate.toView(): Map<String, Any?> = mapOf(
-        "score" to score,
-        "status" to status.name,
+    private fun Proposal.toView(): Map<String, Any?> = mapOf(
+        "tier" to tier.name,
+        "type" to type.name,
+        "signal" to signalType.name,
         "repo" to repoFullName,
-        "issueNumber" to issueNumber,
-        "title" to title,
-        "issueUrl" to issueUrl,
         "repoUrl" to repoUrl,
-        "language" to language,
-        "matchedLabel" to matchedLabel,
         "stars" to stars,
-        "openPrCount" to openPrCount,
-        "closedUnmergedPrCount" to closedUnmergedPrCount,
-        "mergedPrCount" to mergedPrCount,
-        "reasons" to reasons,
+        "language" to language,
+        "title" to title,
+        "detail" to detail,
+        "evidenceUrl" to evidenceUrl,
+        "status" to status.name,
     )
 }
