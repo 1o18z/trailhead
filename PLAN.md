@@ -53,13 +53,25 @@
 ## 작업 순서
 
 - [x] 프로젝트 스캐폴딩 (Gradle, Spring Boot, Kotlin)
-- [ ] 레포 발굴 (search repositories + 기여친화/활발 필터)
-- [ ] 신호 수집기 4종 (TODO/FIXME, 의존성, 코드 냄새, CI)
-- [ ] 제안 생성 + 상/중/하 등급화 (하 제거)
-- [ ] 리포트/대시보드 (제안 목록·근거·등급)
-- [ ] 1회 스캔 모드 + GitHub Actions 크론(09/15/21) + keepalive
-- [ ] 신규 제안을 이 레포에 PR 로 기록 (중복 판정=대상 링크 기준)
-- [ ] 승인 후 구현+PR (fork → 변경 → upstream PR) — 안전 유형부터
+- [x] 레포 발굴 (search repositories + 기여친화/활발 필터)
+- [x] 신호 수집기 4종 (TODO/FIXME, 코드 냄새, CI / 의존성은 자리만)
+- [x] 제안 생성 + 상/중/하 등급화 (하 제거)
+- [x] 리포트/대시보드 (제안 목록·근거·등급)
+- [x] 1회 스캔 모드 + GitHub Actions 크론(09/15/21) + keepalive
+- [x] 신규 제안을 이 레포에 PR 로 기록 (중복 판정=브랜치 head 기준, 열림+닫힘)
+- [ ] 승인 후 구현+PR (fork → 변경 → upstream PR) — 안전 유형부터  ← Phase B
+
+## 아직 라이브 검증 안 된 것 (push 후 확인 필요)
+
+- PR 생성 경로(브랜치→파일→PR)는 코드/컴파일/스캔모드까지 검증됨. 단 실제 PR 생성은
+  원격 main 이 생긴 뒤(= push 후)에만 가능 → **push 후 1회 실검증 필요**.
+- GitHub Actions 의 기본 토큰으로 PR 을 만들려면 레포 설정에서
+  **"Allow GitHub Actions to create and approve pull requests"** 를 켜야 함(기본 꺼짐).
+
+## 의존성 신호 TODO
+
+- 현재 DependencyCollector 는 매니페스트 존재만 확인하고 제안을 내지 않음(억지 LOW 방지).
+  Maven Central/npm 최신버전 또는 GitHub Advisory 대조 연동 후 MEDIUM/HIGH 로 승격 예정.
 
 ## 폐기된 과거 설계
 
