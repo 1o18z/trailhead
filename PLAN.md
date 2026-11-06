@@ -41,14 +41,28 @@
 4. **중복 제거**: 이미 제안·PR 한 것 제외 (이 레포 PR 본문의 대상 링크 기준, 열림+닫힘 모두)
 5. **기록/알림**: 대시보드·리포트 + 이 레포에 신규 제안 PR 생성(실행당 상한)
 
-### B. 승인 후 (사람 트리거, 구현+PR)
-6. 내가 제안을 보고 승인
-7. 대상 레포 fork → 브랜치 → **변경 생성** → 커밋 → push
-8. upstream 으로 정식 PR 생성 (무엇을·왜 설명, 근거 신호 링크 포함)
+### B. 승인 후 (사람 트리거, 구현+PR) — 확정 설계
 
-> ⚠️ 한계: 변경 자동 생성은 유형별 난이도 차이 큼. 의존성 업그레이드·단순 TODO 정리는
-> 믿을 만하나, 일반 버그 수정의 올바른 코드 자동 생성은 보장 어려움 → B 는 기계적으로
-> 안전한 유형부터, 일반 버그는 AI 보조 단계로 별도 설계.
+흐름 (결정: 코드생성=Claude API, 알림=깃허브 기본메일, 승인=후보PR 코멘트/라벨):
+
+```
+② 포인트 발견 → 대상 레포 fork → Claude API 가 실제 변경 생성·커밋(내 fork 브랜치)
+   → trailhead 에 후보 PR 생성(진짜 diff + 레포/근거 첨부) → 깃허브가 구독자(나)에게 자동 메일
+③ 내가 후보 PR 에 `ok` 코멘트 또는 `approve` 라벨
+   → 워크플로 감지 → fork 브랜치 → upstream 정식 PR 오픈 → PR 링크 재알림(메일)
+```
+
+6. **코드 생성 시점 = 승인 전(②)**. 승인 전에 계획서만 보면 승인 후 생성된 실제 코드가
+   미검토 상태로 외부 메인테이너에게 감 → "쓰레기 기여" 리스크. 그래서 ②에서 미리 만들어
+   후보 PR 에 **실제 diff** 를 담고, 내가 그 diff 를 보고 승인하면 upstream 에 올린다.
+7. **구현 주체 = Claude API**. Action 에서 `ANTHROPIC_API_KEY`(레포 secret)로 호출.
+   대상 파일 내용 + 신호(무엇을 왜) 를 주고 변경된 파일/패치를 받아 fork 브랜치에 커밋.
+8. **승인 트리거**: 후보 PR 의 `ok` 코멘트 또는 `approve` 라벨 → 별도 워크플로(`on: issue_comment`/`labeled`)
+   가 감지해 upstream 정식 PR 생성(무엇을·왜 + 근거 신호 링크). 폰에서도 가능.
+
+> ⚠️ 자동 생성 난이도: 단일 파일에 국소적인 변경(FIXME 해소, 단순 정리)부터 시작한다.
+> 과대 파일 분할 리팩터링·다중 파일 버그 수정은 자동 생성 품질 보장이 어려워 **후순위**.
+> 의존성 업그레이드는 기계적이라 LLM 없이도 가능(신호 수집기 완성 후).
 
 ## 작업 순서
 
@@ -59,14 +73,28 @@
 - [x] 리포트/대시보드 (제안 목록·근거·등급)
 - [x] 1회 스캔 모드 + GitHub Actions 크론(09/15/21) + keepalive
 - [x] 신규 제안을 이 레포에 PR 로 기록 (중복 판정=브랜치 head 기준, 열림+닫힘)
-- [ ] 승인 후 구현+PR (fork → 변경 → upstream PR) — 안전 유형부터  ← Phase B
+- [x] 무인 Actions 경로 실검증 (크론/dispatch → 스캔 → 후보 PR 자동 생성)
+- [x] Phase B 구현 (fork → Claude API 변경생성 → 후보 diff → 승인 → upstream PR) — 빌드/배선 검증, **라이브 미검증**
+  - [x] B-1: 대상 레포 fork + 준비 대기 (GitHub API)
+  - [x] B-2: Claude API 연동 — 신호+파일내용 → 변경 생성 (NO_CHANGE 시 생략)
+  - [x] B-3: fork 브랜치 커밋 + 후보 PR 본문에 실제 diff/compare 삽입
+  - [x] B-4: 승인 감지 워크플로 (소유자 `ok` 코멘트 / `approve` 라벨 → submit 모드)
+  - [x] B-5: upstream 정식 PR 생성(메타데이터 기반, DB 비의존) + 링크 코멘트
 
-## 아직 라이브 검증 안 된 것 (push 후 확인 필요)
+## Phase B 운영 전 준비 (시크릿)
 
-- PR 생성 경로(브랜치→파일→PR)는 코드/컴파일/스캔모드까지 검증됨. 단 실제 PR 생성은
-  원격 main 이 생긴 뒤(= push 후)에만 가능 → **push 후 1회 실검증 필요**.
-- GitHub Actions 의 기본 토큰으로 PR 을 만들려면 레포 설정에서
-  **"Allow GitHub Actions to create and approve pull requests"** 를 켜야 함(기본 꺼짐).
+- `GH_PAT`: 사용자(1o18z) PAT. **필수** — 기본 GITHUB_TOKEN 은 fork 소유/외부 PR 불가.
+  scope: `repo`(+ 필요시 `workflow`). scan·approve 워크플로가 사용.
+- `ANTHROPIC_API_KEY`: 있으면 AI 변경 생성 활성화. 없으면 Phase A(설명만 기록)로 폴백.
+- 둘 다 없으면 기존 Phase A 동작 그대로 (안전).
+
+## 라이브 검증 완료 / 미완
+
+- [완료] 무인 Actions 경로: dispatch → 스캔 → 봇이 후보 PR 자동 생성 (정리 완료).
+- [완료] GitHub Actions 기본 토큰 PR 생성 설정 ON (`can_approve_pull_request_reviews=true`).
+- [완료] Phase B 전체 컴파일 + bootJar + submit 모드 기동/빈배선 스모크.
+- [미완] Phase B **라이브** 1회: 시크릿 등록 후 실제 fork→AI변경→후보PR→승인→upstream PR.
+  외부 레포에 실제 PR 이 나가는 민감 단계라, 첫 회는 수동 dispatch + 작은 대상으로 확인 권장.
 
 ## 의존성 신호 TODO
 
