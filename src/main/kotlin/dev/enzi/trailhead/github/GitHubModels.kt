@@ -86,3 +86,11 @@ data class CheckRun(
     val conclusion: String? = null,
     @JsonProperty("html_url") val htmlUrl: String? = null,
 )
+
+// ---- PR 생성 / 조회 ----
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class PullResponse(
+    val number: Int = 0,
+    @JsonProperty("html_url") val htmlUrl: String = "",
+)

@@ -75,13 +75,72 @@ class GitHubClient(private val github: RestClient) {
     /** 파일 내용을 디코드해서 돌려준다. 없으면 null. */
     fun getFileContent(owner: String, repo: String, path: String): String? = try {
         val resp = github.get()
-            .uri("/repos/{o}/{r}/contents/{p}", owner, repo, path)
+            .uri { b -> b.path("/repos/{o}/{r}/contents").pathSegment(*path.split("/").toTypedArray()).build(owner, repo) }
             .retrieve()
             .body(ContentResponse::class.java)
         val raw = resp?.content
         if (raw != null && resp.encoding == "base64") String(Base64.getMimeDecoder().decode(raw)) else raw
     } catch (e: RestClientResponseException) {
         null // 404 등: 파일 없음
+    }
+
+    // ---- 쓰기 (제안을 이 레포에 PR 로 기록) ----
+
+    /** head 가 {owner}:{branch} 인 PR 이 열림/닫힘 통틀어 존재하는지 (중복 판정, 브랜치 삭제돼도 유효) */
+    fun pullExistsForHead(owner: String, repo: String, branch: String): Boolean = try {
+        val arr = github.get()
+            .uri { b ->
+                b.path("/repos/{o}/{r}/pulls")
+                    .queryParam("head", "$owner:$branch")
+                    .queryParam("state", "all")
+                    .build(owner, repo)
+            }
+            .retrieve()
+            .body(Array<PullResponse>::class.java)
+        (arr?.size ?: 0) > 0
+    } catch (e: RestClientResponseException) {
+        log.warn("pullExistsForHead 실패 [{}/{}:{}]: {}", owner, repo, branch, e.statusCode)
+        false
+    }
+
+    /** base 브랜치 sha 에서 새 브랜치를 만든다. 이미 있으면 true 로 간주. */
+    fun createBranch(owner: String, repo: String, branch: String, fromSha: String): Boolean = try {
+        github.post()
+            .uri("/repos/{o}/{r}/git/refs", owner, repo)
+            .body(mapOf("ref" to "refs/heads/$branch", "sha" to fromSha))
+            .retrieve()
+            .toBodilessEntity()
+        true
+    } catch (e: RestClientResponseException) {
+        if (e.statusCode.value() == 422) true // 이미 존재
+        else { log.warn("createBranch 실패 [{}/{}:{}]: {}", owner, repo, branch, e.statusCode); false }
+    }
+
+    /** 브랜치에 파일을 생성/수정한다. */
+    fun putFile(owner: String, repo: String, path: String, branch: String, message: String, content: String): Boolean = try {
+        val b64 = Base64.getEncoder().encodeToString(content.toByteArray())
+        github.put()
+            .uri { b -> b.path("/repos/{o}/{r}/contents").pathSegment(*path.split("/").toTypedArray()).build(owner, repo) }
+            .body(mapOf("message" to message, "content" to b64, "branch" to branch))
+            .retrieve()
+            .toBodilessEntity()
+        true
+    } catch (e: RestClientResponseException) {
+        log.warn("putFile 실패 [{}/{} {}]: {}", owner, repo, path, e.statusCode)
+        false
+    }
+
+    /** PR 을 만든다. 성공 시 PR URL. */
+    fun createPull(owner: String, repo: String, title: String, head: String, base: String, body: String): String? = try {
+        github.post()
+            .uri("/repos/{o}/{r}/pulls", owner, repo)
+            .body(mapOf("title" to title, "head" to head, "base" to base, "body" to body))
+            .retrieve()
+            .body(PullResponse::class.java)
+            ?.htmlUrl
+    } catch (e: RestClientResponseException) {
+        log.warn("createPull 실패 [{}/{} head={}]: {} {}", owner, repo, head, e.statusCode, e.responseBodyAsString.take(200))
+        null
     }
 
     /** 기본 브랜치 최신 커밋 SHA */
