@@ -9,6 +9,7 @@ data class TrailheadProperties(
     val signals: Signals = Signals(),
     val grading: Grading = Grading(),
     val pr: Pr = Pr(),
+    val ai: Ai = Ai(),
 ) {
     data class GitHub(
         val token: String = "",
@@ -65,5 +66,19 @@ data class TrailheadProperties(
         val branchPrefix: String = "proposal",
         /** 제안 파일을 담을 디렉터리 */
         val candidatesDir: String = "candidates",
+    )
+
+    /** 승인된 제안의 실제 코드 변경을 Claude API 로 생성하는 설정 (Phase B) */
+    data class Ai(
+        /** AI 변경 생성 활성화 여부. API 키(ANTHROPIC_API_KEY)가 있을 때만 켠다 */
+        val enabled: Boolean = false,
+        /** 사용할 모델. 기본은 최신 Opus */
+        val model: String = "claude-opus-5-5",
+        /** 추론 깊이: LOW/MEDIUM/HIGH/XHIGH/MAX (코드작업이라 HIGH) */
+        val effort: String = "HIGH",
+        /** 응답 토큰 상한 */
+        val maxTokens: Long = 16000,
+        /** 이 바이트 수를 넘는 파일은 AI 생성 생략 (단일 파일 국소수정 스코프 가드) */
+        val maxFileBytes: Int = 30000,
     )
 }

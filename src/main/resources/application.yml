@@ -58,6 +58,13 @@ trailhead:
     max-per-run: 10
     branch-prefix: proposal
     candidates-dir: candidates
+  ai:
+    # 승인된 제안의 실제 코드 변경 생성 (Phase B). 키 있을 때만 켬.
+    enabled: ${TRAILHEAD_AI_ENABLED:false}
+    model: claude-opus-5-5
+    effort: HIGH
+    max-tokens: 16000
+    max-file-bytes: 30000
 
 logging:
   level:
