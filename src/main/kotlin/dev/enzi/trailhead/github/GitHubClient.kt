@@ -159,6 +159,33 @@ class GitHubClient(private val github: RestClient) {
         null
     }
 
+    // ---- Phase B: 대상 레포 fork ----
+
+    /**
+     * 대상 레포를 인증 사용자 계정으로 fork 한다. fork 는 비동기(202)라 반환 객체가 와도
+     * git 데이터 복제는 끝나지 않았을 수 있다 → 커밋 전 waitForForkReady 로 준비 확인.
+     * 반환 Repo 의 fullName 이 `{내계정}/{repo}` → ownerAndName().first 가 fork 소유자.
+     */
+    fun forkRepo(owner: String, repo: String): Repo? = try {
+        github.post()
+            .uri("/repos/{o}/{r}/forks", owner, repo)
+            .retrieve()
+            .body(Repo::class.java)
+    } catch (e: RestClientResponseException) {
+        log.warn("forkRepo 실패 [{}/{}]: {} {}", owner, repo, e.statusCode, e.responseBodyAsString.take(200))
+        null
+    }
+
+    /** fork 의 git 데이터 복제가 끝나 기본 브랜치 SHA 를 읽을 수 있을 때까지 대기. 준비되면 true. */
+    fun waitForForkReady(forkOwner: String, repo: String, branch: String, attempts: Int = 15, intervalMs: Long = 2000): Boolean {
+        repeat(attempts) {
+            if (getHeadSha(forkOwner, repo, branch) != null) return true
+            runCatching { Thread.sleep(intervalMs) }
+        }
+        log.warn("waitForForkReady 시간초과 [{}/{}@{}]", forkOwner, repo, branch)
+        return false
+    }
+
     /** 기본 브랜치 최신 커밋 SHA */
     fun getHeadSha(owner: String, repo: String, branch: String): String? = try {
         github.get()
