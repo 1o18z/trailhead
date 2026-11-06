@@ -1,0 +1,66 @@
+name: trailhead approve
+
+# 후보 PR 승인 감지 → 대상 레포에 정식 upstream PR 제출.
+# 승인 방법 ① 후보 PR 에 정확히 `ok` / `approve` / `ㅇㅋ` 코멘트 (레포 소유자만)
+#          ② 후보 PR 에 `approve` 라벨
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: trailhead-approve-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    # PR 에 대한 소유자의 승인 코멘트이거나, approve 라벨이 달린 경우에만
+    if: >
+      (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request != null
+        && github.event.comment.author_association == 'OWNER'
+        && contains(fromJSON('["ok","OK","approve","승인","ㅇㅋ"]'), github.event.comment.body))
+      || (github.event_name == 'pull_request'
+        && github.event.label.name == 'approve')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: "21"
+          cache: gradle
+
+      - name: Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bootJar --no-daemon
+
+      - name: Resolve candidate PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Submit upstream PR
+        env:
+          # fork 를 소유하고 외부 레포에 PR 을 올리려면 사용자 PAT 가 필요하다.
+          # (기본 GITHUB_TOKEN 은 fork 소유/외부 PR 생성 불가)
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          java -jar build/libs/trailhead-0.1.0.jar \
+            --trailhead.mode=submit \
+            --spring.main.web-application-type=none \
+            --spring.datasource.url=jdbc:h2:mem:submit \
+            --trailhead.pr.repo=${{ github.repository }} \
+            --trailhead.submit.pr-number=${{ steps.pr.outputs.number }}
