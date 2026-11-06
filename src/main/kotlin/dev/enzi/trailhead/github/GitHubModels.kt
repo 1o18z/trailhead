@@ -3,75 +3,86 @@ package dev.enzi.trailhead.github
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 
-/** /search/issues 응답 */
+// ---- 레포 검색 / 정보 ----
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class SearchIssuesResponse(
+data class RepoSearchResponse(
     @JsonProperty("total_count") val totalCount: Int = 0,
-    @JsonProperty("incomplete_results") val incompleteResults: Boolean = false,
-    val items: List<IssueItem> = emptyList(),
+    val items: List<Repo> = emptyList(),
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class IssueItem(
-    val number: Int,
-    val title: String,
-    val state: String,
-    val comments: Int = 0,
-    @JsonProperty("html_url") val htmlUrl: String,
-    @JsonProperty("repository_url") val repositoryUrl: String,
-    @JsonProperty("created_at") val createdAt: String? = null,
-    @JsonProperty("updated_at") val updatedAt: String? = null,
-    val labels: List<Label> = emptyList(),
-    /** 이슈 검색 결과에 PR 이 섞여 들어오면 이 필드가 채워짐 */
-    @JsonProperty("pull_request") val pullRequest: Map<String, Any?>? = null,
-) {
-    /** "https://api.github.com/repos/owner/repo" → "owner/repo" */
-    fun repoFullName(): String =
-        repositoryUrl.substringAfter("/repos/", "").ifEmpty { "unknown/unknown" }
-}
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class Label(val name: String = "")
-
-/** /repos/{owner}/{repo} 응답 (필요한 필드만) */
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class RepoInfo(
+data class Repo(
     @JsonProperty("full_name") val fullName: String = "",
     @JsonProperty("html_url") val htmlUrl: String = "",
     val language: String? = null,
     @JsonProperty("stargazers_count") val stars: Int = 0,
     @JsonProperty("open_issues_count") val openIssues: Int = 0,
     @JsonProperty("pushed_at") val pushedAt: String? = null,
+    @JsonProperty("default_branch") val defaultBranch: String = "main",
     val archived: Boolean = false,
     val fork: Boolean = false,
-)
-
-/** /repos/{owner}/{repo}/issues/{n}/timeline 의 cross-referenced 이벤트 */
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class TimelineEvent(
-    val event: String = "",
-    val source: TimelineSource? = null,
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class TimelineSource(
-    val type: String? = null,
-    val issue: TimelineIssue? = null,
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class TimelineIssue(
-    val number: Int = 0,
-    val title: String = "",
-    val state: String = "",
-    @JsonProperty("html_url") val htmlUrl: String = "",
-    @JsonProperty("pull_request") val pullRequest: PullRequestRef? = null,
 ) {
-    fun isPullRequest(): Boolean = pullRequest != null
+    fun ownerAndName(): Pair<String, String>? =
+        fullName.split("/", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] }
 }
 
+// ---- 코드 검색 (TODO/FIXME 등) ----
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class PullRequestRef(
+data class CodeSearchResponse(
+    @JsonProperty("total_count") val totalCount: Int = 0,
+    val items: List<CodeHit> = emptyList(),
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class CodeHit(
+    val path: String = "",
+    @JsonProperty("html_url") val htmlUrl: String = "",
+)
+
+// ---- Git 트리 (코드 냄새: 과대 파일) ----
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class TreeResponse(
+    val tree: List<TreeEntry> = emptyList(),
+    val truncated: Boolean = false,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class TreeEntry(
+    val path: String = "",
+    val type: String = "",
+    val size: Long? = null,
+)
+
+// ---- 파일 내용 (의존성 매니페스트) ----
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ContentResponse(
+    val path: String = "",
+    val encoding: String? = null,
+    val content: String? = null,
     @JsonProperty("html_url") val htmlUrl: String? = null,
-    @JsonProperty("merged_at") val mergedAt: String? = null,
+)
+
+// ---- 커밋 / CI 상태 ----
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class CommitRef(
+    val sha: String = "",
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class CheckRunsResponse(
+    @JsonProperty("total_count") val totalCount: Int = 0,
+    @JsonProperty("check_runs") val checkRuns: List<CheckRun> = emptyList(),
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class CheckRun(
+    val name: String = "",
+    val status: String = "",
+    val conclusion: String? = null,
+    @JsonProperty("html_url") val htmlUrl: String? = null,
 )

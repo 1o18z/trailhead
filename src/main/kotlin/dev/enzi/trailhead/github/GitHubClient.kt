@@ -5,82 +5,106 @@ import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientResponseException
 import java.time.LocalDate
+import java.util.Base64
 
 @Component
 class GitHubClient(private val github: RestClient) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /**
-     * 열린 이슈를 라벨/언어로 검색한다. 검색 결과에 섞여 들어오는 PR 은 제외한다.
-     */
-    fun searchIssues(language: String, label: String, updatedWithinDays: Long, limit: Int): List<IssueItem> {
-        val since = LocalDate.now().minusDays(updatedWithinDays)
-        val q = buildString {
-            append("label:\"").append(label).append("\" ")
-            append("language:").append(language).append(" ")
-            append("state:open is:issue is:public archived:false ")
-            append("no:assignee ")
-            append("updated:>=").append(since)
-        }
-        val perPage = limit.coerceIn(1, 100)
+    /** 언어·인기·활발 기준으로 레포를 발굴한다. */
+    fun searchRepos(language: String, minStars: Int, maxStars: Int, pushedWithinDays: Long, limit: Int): List<Repo> {
+        val since = LocalDate.now().minusDays(pushedWithinDays)
+        val q = "language:$language stars:$minStars..$maxStars pushed:>=$since archived:false fork:false is:public"
         return try {
-            val resp = github.get()
+            github.get()
                 .uri { b ->
-                    b.path("/search/issues")
+                    b.path("/search/repositories")
                         .queryParam("q", q)
-                        .queryParam("sort", "updated")
+                        .queryParam("sort", "stars")
                         .queryParam("order", "desc")
-                        .queryParam("per_page", perPage)
+                        .queryParam("per_page", limit.coerceIn(1, 100))
                         .build()
                 }
                 .retrieve()
-                .body(SearchIssuesResponse::class.java)
-            (resp?.items ?: emptyList()).filter { it.pullRequest == null }
+                .body(RepoSearchResponse::class.java)
+                ?.items ?: emptyList()
         } catch (e: RestClientResponseException) {
-            log.warn("searchIssues 실패 [lang={}, label={}]: {} {}", language, label, e.statusCode, e.responseBodyAsString.take(200))
+            log.warn("searchRepos 실패 [{}]: {} {}", language, e.statusCode, e.responseBodyAsString.take(200))
             emptyList()
         }
     }
 
-    fun getRepo(fullName: String): RepoInfo? {
-        val parts = fullName.split("/", limit = 2)
-        if (parts.size != 2) return null
+    /** 기여 친화도 신호: CONTRIBUTING 가이드 존재 여부 */
+    fun hasContributing(owner: String, repo: String): Boolean {
+        val paths = listOf("CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md", "CONTRIBUTING")
+        return paths.any { getFileContent(owner, repo, it) != null }
+    }
+
+    /** 코드 검색으로 TODO/FIXME 같은 마커가 든 파일을 찾는다. (기본 브랜치, 공개 레포) */
+    fun searchCode(repoFullName: String, term: String, limit: Int): List<CodeHit> {
+        val q = "\"$term\" repo:$repoFullName"
         return try {
             github.get()
-                .uri("/repos/{owner}/{repo}", parts[0], parts[1])
+                .uri { b ->
+                    b.path("/search/code")
+                        .queryParam("q", q)
+                        .queryParam("per_page", limit.coerceIn(1, 100))
+                        .build()
+                }
                 .retrieve()
-                .body(RepoInfo::class.java)
+                .body(CodeSearchResponse::class.java)
+                ?.items ?: emptyList()
         } catch (e: RestClientResponseException) {
-            log.warn("getRepo 실패 [{}]: {}", fullName, e.statusCode)
-            null
+            log.warn("searchCode 실패 [{} / {}]: {}", repoFullName, term, e.statusCode)
+            emptyList()
         }
     }
 
-    /**
-     * 이슈 타임라인에서 cross-referenced 된 PR 들을 모은다. (중복/거절 판단용)
-     */
-    fun getCrossReferencedPrs(fullName: String, issueNumber: Int): List<TimelineIssue> {
-        val (owner, repo) = fullName.split("/", limit = 2).let {
-            if (it.size == 2) it[0] to it[1] else return emptyList()
-        }
-        return try {
-            val events = github.get()
-                .uri { b ->
-                    b.path("/repos/{owner}/{repo}/issues/{n}/timeline")
-                        .queryParam("per_page", 100)
-                        .build(owner, repo, issueNumber)
-                }
-                .retrieve()
-                .body(Array<TimelineEvent>::class.java)
-                ?: emptyArray()
-            events
-                .filter { it.event == "cross-referenced" }
-                .mapNotNull { it.source?.issue }
-                .filter { it.isPullRequest() }
-        } catch (e: RestClientResponseException) {
-            log.warn("timeline 조회 실패 [{}#{}]: {}", fullName, issueNumber, e.statusCode)
-            emptyList()
-        }
+    /** 재귀 트리로 레포의 파일 목록과 크기를 가져온다. (코드 냄새용) */
+    fun getTree(owner: String, repo: String, branch: String): TreeResponse? = try {
+        github.get()
+            .uri { b -> b.path("/repos/{o}/{r}/git/trees/{br}").queryParam("recursive", "1").build(owner, repo, branch) }
+            .retrieve()
+            .body(TreeResponse::class.java)
+    } catch (e: RestClientResponseException) {
+        log.warn("getTree 실패 [{}/{}@{}]: {}", owner, repo, branch, e.statusCode)
+        null
+    }
+
+    /** 파일 내용을 디코드해서 돌려준다. 없으면 null. */
+    fun getFileContent(owner: String, repo: String, path: String): String? = try {
+        val resp = github.get()
+            .uri("/repos/{o}/{r}/contents/{p}", owner, repo, path)
+            .retrieve()
+            .body(ContentResponse::class.java)
+        val raw = resp?.content
+        if (raw != null && resp.encoding == "base64") String(Base64.getMimeDecoder().decode(raw)) else raw
+    } catch (e: RestClientResponseException) {
+        null // 404 등: 파일 없음
+    }
+
+    /** 기본 브랜치 최신 커밋 SHA */
+    fun getHeadSha(owner: String, repo: String, branch: String): String? = try {
+        github.get()
+            .uri("/repos/{o}/{r}/commits/{br}", owner, repo, branch)
+            .retrieve()
+            .body(CommitRef::class.java)
+            ?.sha
+    } catch (e: RestClientResponseException) {
+        log.warn("getHeadSha 실패 [{}/{}@{}]: {}", owner, repo, branch, e.statusCode)
+        null
+    }
+
+    /** 특정 커밋의 체크런(CI) 목록 */
+    fun getCheckRuns(owner: String, repo: String, ref: String): List<CheckRun> = try {
+        github.get()
+            .uri { b -> b.path("/repos/{o}/{r}/commits/{ref}/check-runs").queryParam("per_page", 100).build(owner, repo, ref) }
+            .retrieve()
+            .body(CheckRunsResponse::class.java)
+            ?.checkRuns ?: emptyList()
+    } catch (e: RestClientResponseException) {
+        log.warn("getCheckRuns 실패 [{}/{}@{}]: {}", owner, repo, ref, e.statusCode)
+        emptyList()
     }
 }
