@@ -27,6 +27,8 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     // Phase B: 승인된 제안의 실제 코드 변경을 Claude API 로 생성
     implementation("com.anthropic:anthropic-java:3.2.0")
+    // 변경 diff 를 후보 PR 본문에 보여주기 위한 unified diff 생성
+    implementation("io.github.java-diff-utils:java-diff-utils:4.15")
     runtimeOnly("com.h2database:h2")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
