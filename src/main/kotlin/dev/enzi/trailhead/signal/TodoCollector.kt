@@ -22,8 +22,11 @@ class TodoCollector(
     override fun name() = "todo-marker"
 
     override fun collect(repo: Repo): List<RawSignal> {
-        val perMarker = (props.signals.maxPerRepo / props.signals.todoMarkers.size.coerceAtLeast(1)).coerceAtLeast(1)
-        return props.signals.todoMarkers.flatMap { marker ->
+        // 어차피 품질 게이트에서 버려질 LOW 마커(TODO/XXX)는 검색하지 않는다 (API 절약 + rate limit 완화)
+        val markers = props.signals.todoMarkers.filter { tierFor(it) != Tier.LOW }
+        if (markers.isEmpty()) return emptyList()
+        val perMarker = (props.signals.maxPerRepo / markers.size).coerceAtLeast(1)
+        return markers.flatMap { marker ->
             client.searchCode(repo.fullName, marker, perMarker)
                 // 데이터/설정 파일(.acl, .txt 등)의 우연한 매치 제외 — 코드 주석만 노림
                 .filter { isSourceFile(it.path) }
