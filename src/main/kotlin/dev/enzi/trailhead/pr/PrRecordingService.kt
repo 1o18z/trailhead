@@ -105,6 +105,13 @@ class PrRecordingService(
             append("_trailhead 자동 기록. 승인하면(이 PR 을 머지/라벨) 다음 단계에서 구현·업스트림 PR 로 진행._\n")
         }
         append("<!-- trailhead-id: ").append(p.id).append(" -->\n")
+        // 승인 후 업스트림 PR 을 DB 없이 재구성하기 위한 기계판독 메타데이터
+        if (contrib != null) {
+            append("<!-- trailhead-target: ").append(p.repoFullName).append(" -->\n")
+            append("<!-- trailhead-head: ").append(contrib.forkHead).append(" -->\n")
+            append("<!-- trailhead-title: ").append(contrib.summary.take(120).replace("\n", " ")).append(" -->\n")
+            append("<!-- trailhead-file: ").append(contrib.filePath).append(" -->\n")
+        }
     }
 
     private fun StringBuilder.appendChange(contrib: Contribution?) {
