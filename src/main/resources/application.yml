@@ -26,19 +26,38 @@ trailhead:
     token: ${GITHUB_TOKEN:}
     base-url: https://api.github.com
   discovery:
-    # 내 주력 언어 중심
+    # 내 주력 언어 중심으로 레포 발굴
     languages:
       - kotlin
       - java
-    labels:
-      - "good first issue"
-      - "help wanted"
-    # 언어·라벨 조합별로 가져올 이슈 최대 개수
-    per-query-limit: 20
-    # 최근 N일 이내에 갱신된 이슈만
-    updated-within-days: 180
-    # 리포트 파일 출력 디렉터리
+    min-stars: 100
+    max-stars: 40000
+    max-repos: 15
+    pushed-within-days: 90
+    require-contributing: true
     report-dir: ./reports
+  signals:
+    todo-enabled: true
+    dependency-enabled: true
+    code-smell-enabled: true
+    ci-enabled: true
+    todo-markers:
+      - TODO
+      - FIXME
+      - HACK
+      - XXX
+    max-per-repo: 20
+    large-file-bytes: 60000
+  grading:
+    # HIGH 또는 MEDIUM. LOW(억지 제안)는 항상 버림
+    min-tier: MEDIUM
+  pr:
+    enabled: false
+    repo: ""
+    base-branch: main
+    max-per-run: 10
+    branch-prefix: proposal
+    candidates-dir: candidates
 
 logging:
   level:
