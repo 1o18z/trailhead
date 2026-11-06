@@ -53,6 +53,12 @@ class CodeSmellCollector(
 
     companion object {
         private val SOURCE_EXT = listOf(".kt", ".java", ".js", ".ts", ".tsx", ".py", ".go", ".rb", ".cs", ".scala")
-        private val NON_SOURCE_HINT = listOf("/test/", "/tests/", "generated", ".min.", "/vendor/", "/node_modules/")
+
+        // 손댈 '로직'이 아닌 것들: 테스트/벤더/생성물/벡터드로어블/데이터바인딩 등
+        private val NON_SOURCE_HINT = listOf(
+            "/test/", "/tests/", "generated", ".min.", "/vendor/", "/node_modules/",
+            "/svg/", "drawablevector", "/build/", "databinding", "/proto/", "_pb.", ".pb.",
+            "/fixtures/", "/testdata/", "/assets/",
+        )
     }
 }
