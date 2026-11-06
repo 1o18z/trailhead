@@ -4,7 +4,16 @@ name: trailhead scan
 on:
   schedule:
     - cron: "7 0,6,12 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      max_repos:
+        description: "분석할 레포 수 (수동 실행 기본 5)"
+        required: false
+        default: "5"
+      max_per_run:
+        description: "생성할 PR 최대 수 (수동 실행 기본 3)"
+        required: false
+        default: "3"
 
 # 신규 제안을 이 레포에 PR 로 기록하려면 쓰기 권한 필요.
 # 추가로 Settings → Actions → General → Workflow permissions 에서
@@ -38,11 +47,16 @@ jobs:
       - name: Run scan and record proposals
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          MAX_REPOS: ${{ github.event.inputs.max_repos }}
+          MAX_PER_RUN: ${{ github.event.inputs.max_per_run }}
         run: |
-          java -jar build/libs/trailhead-0.1.0.jar \
-            --trailhead.mode=scan \
+          ARGS="--trailhead.mode=scan \
             --spring.main.web-application-type=none \
             --trailhead.pr.enabled=true \
             --trailhead.pr.repo=${{ github.repository }} \
             --trailhead.pr.base-branch=${{ github.ref_name }} \
-            --spring.datasource.url=jdbc:h2:mem:scan
+            --spring.datasource.url=jdbc:h2:mem:scan"
+          # 수동 실행(workflow_dispatch) 시에만 규모 제한 적용, 예약 실행은 앱 기본값 사용
+          [ -n "$MAX_REPOS" ] && ARGS="$ARGS --trailhead.discovery.max-repos=$MAX_REPOS"
+          [ -n "$MAX_PER_RUN" ] && ARGS="$ARGS --trailhead.pr.max-per-run=$MAX_PER_RUN"
+          java -jar build/libs/trailhead-0.1.0.jar $ARGS
