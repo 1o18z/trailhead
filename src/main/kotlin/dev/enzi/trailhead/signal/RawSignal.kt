@@ -19,4 +19,6 @@ data class RawSignal(
     val evidenceUrl: String,
     /** 중복 판정을 위한 안정적 키 (레포 + 신호 + 위치) */
     val dedupKey: String,
+    /** 변경 대상 파일 경로. 파일 기반 신호(TODO/과대파일)만 가짐, 그 외 null */
+    val filePath: String? = null,
 )

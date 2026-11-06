@@ -41,6 +41,7 @@ class TodoCollector(
                     detail = "`${hit.path}` 에 `$marker` 표시가 있음. 코드가 명시적으로 수정/정리 필요를 남긴 지점.",
                     evidenceUrl = hit.htmlUrl,
                     dedupKey = "${repo.fullName}:TODO_MARKER:$marker:${hit.path}",
+                    filePath = hit.path,
                 )
             }
         }

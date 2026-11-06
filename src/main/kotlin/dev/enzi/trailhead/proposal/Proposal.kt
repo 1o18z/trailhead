@@ -43,8 +43,16 @@ class Proposal(
     @Column(length = 800)
     var evidenceUrl: String = "",
 
+    /** 변경 대상 파일 경로 (파일 기반 신호만). Phase B 구현에서 이 파일을 수정 */
+    @Column(length = 400)
+    var filePath: String? = null,
+
     @Enumerated(EnumType.STRING)
     var status: ProposalStatus = ProposalStatus.NEW,
+
+    /** Phase B: AI 변경을 커밋한 fork 브랜치 "forkOwner:branch" (승인 후 upstream PR 의 head) */
+    @Column(length = 300)
+    var forkHead: String? = null,
 
     var discoveredAt: Instant = Instant.now(),
     var lastSeenAt: Instant = Instant.now(),

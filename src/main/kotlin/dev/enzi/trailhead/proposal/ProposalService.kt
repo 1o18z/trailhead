@@ -84,6 +84,7 @@ class ProposalService(
             title = s.title.take(500)
             detail = s.detail
             evidenceUrl = s.evidenceUrl
+            filePath = s.filePath
             lastSeenAt = Instant.now()
             // status, discoveredAt 은 기존 값 유지 (신규면 기본값)
         }

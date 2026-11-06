@@ -41,6 +41,7 @@ class CodeSmellCollector(
                         "모듈·클래스 분할이나 함수 추출 리팩터링 기여 기회.",
                     evidenceUrl = "${repo.htmlUrl}/blob/${repo.defaultBranch}/${entry.path}",
                     dedupKey = "${repo.fullName}:LARGE_FILE:${entry.path}",
+                    filePath = entry.path,
                 )
             }
             .toList()
