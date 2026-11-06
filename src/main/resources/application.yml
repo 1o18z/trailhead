@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: trailhead
+  datasource:
+    url: jdbc:h2:file:./data/trailhead;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  thymeleaf:
+    cache: false
+
+server:
+  port: 8080
+
+trailhead:
+  github:
+    # gh 토큰을 그대로 넘겨 쓰면 됨: GITHUB_TOKEN 환경변수
+    token: ${GITHUB_TOKEN:}
+    base-url: https://api.github.com
+  discovery:
+    # 내 주력 언어 중심
+    languages:
+      - kotlin
+      - java
+    labels:
+      - "good first issue"
+      - "help wanted"
+    # 언어·라벨 조합별로 가져올 이슈 최대 개수
+    per-query-limit: 20
+    # 최근 N일 이내에 갱신된 이슈만
+    updated-within-days: 180
+    # 리포트 파일 출력 디렉터리
+    report-dir: ./reports
+
+logging:
+  level:
+    dev.enzi.trailhead: INFO
