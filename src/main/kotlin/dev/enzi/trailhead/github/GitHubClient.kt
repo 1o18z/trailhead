@@ -132,18 +132,51 @@ class GitHubClient(private val github: RestClient) {
         else { log.warn("createBranch 실패 [{}/{}:{}]: {}", owner, repo, branch, e.statusCode); false }
     }
 
-    /** 브랜치에 파일을 생성/수정한다. */
-    fun putFile(owner: String, repo: String, path: String, branch: String, message: String, content: String): Boolean = try {
+    /**
+     * 브랜치에 파일을 생성/수정한다.
+     * 기존 파일을 수정할 때는 그 파일의 blob [sha] 를 넘겨야 한다(없으면 신규 생성으로 간주).
+     */
+    fun putFile(
+        owner: String,
+        repo: String,
+        path: String,
+        branch: String,
+        message: String,
+        content: String,
+        sha: String? = null,
+    ): Boolean = try {
         val b64 = Base64.getEncoder().encodeToString(content.toByteArray())
+        val body = buildMap {
+            put("message", message)
+            put("content", b64)
+            put("branch", branch)
+            if (sha != null) put("sha", sha)
+        }
         github.put()
             .uri { b -> b.path("/repos/{o}/{r}/contents").pathSegment(*path.split("/").toTypedArray()).build(owner, repo) }
-            .body(mapOf("message" to message, "content" to b64, "branch" to branch))
+            .body(body)
             .retrieve()
             .toBodilessEntity()
         true
     } catch (e: RestClientResponseException) {
-        log.warn("putFile 실패 [{}/{} {}]: {}", owner, repo, path, e.statusCode)
+        log.warn("putFile 실패 [{}/{} {}]: {} {}", owner, repo, path, e.statusCode, e.responseBodyAsString.take(200))
         false
+    }
+
+    /** 파일의 디코드된 내용 + blob sha (기존 파일 수정 시 PUT 에 sha 가 필요). 없으면 null. */
+    fun getFileContentAndSha(owner: String, repo: String, path: String): Pair<String, String>? = try {
+        val resp = github.get()
+            .uri { b -> b.path("/repos/{o}/{r}/contents").pathSegment(*path.split("/").toTypedArray()).build(owner, repo) }
+            .retrieve()
+            .body(ContentResponse::class.java)
+        val raw = resp?.content
+        val sha = resp?.sha
+        if (raw != null && sha != null) {
+            val decoded = if (resp.encoding == "base64") String(Base64.getMimeDecoder().decode(raw)) else raw
+            decoded to sha
+        } else null
+    } catch (e: RestClientResponseException) {
+        null // 404 등: 파일 없음
     }
 
     /** PR 을 만든다. 성공 시 PR URL. */

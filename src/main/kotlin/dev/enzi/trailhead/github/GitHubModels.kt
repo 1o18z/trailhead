@@ -61,6 +61,7 @@ data class TreeEntry(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ContentResponse(
     val path: String = "",
+    val sha: String? = null,
     val encoding: String? = null,
     val content: String? = null,
     @JsonProperty("html_url") val htmlUrl: String? = null,
