@@ -7,10 +7,25 @@ import org.springframework.web.client.RestClientResponseException
 import java.time.LocalDate
 import java.util.Base64
 
+/** 코드검색 호출 간 최소 간격(ms). 분당 ~10회 제한을 안전하게 밑돈다. */
+private const val CODE_SEARCH_MIN_INTERVAL_MS = 7000L
+
 @Component
 class GitHubClient(private val github: RestClient) {
 
     private val log = LoggerFactory.getLogger(javaClass)
+
+    /** 코드검색 rate limit(분당 ~10회) 대비: 마지막 호출 시각(ms) */
+    private var lastCodeSearchAt = 0L
+    private val codeSearchLock = Any()
+
+    private fun throttleCodeSearch() {
+        synchronized(codeSearchLock) {
+            val wait = CODE_SEARCH_MIN_INTERVAL_MS - (System.currentTimeMillis() - lastCodeSearchAt)
+            if (wait > 0) runCatching { Thread.sleep(wait) }
+            lastCodeSearchAt = System.currentTimeMillis()
+        }
+    }
 
     /** 언어·인기·활발 기준으로 레포를 발굴한다. */
     fun searchRepos(language: String, minStars: Int, maxStars: Int, pushedWithinDays: Long, limit: Int): List<Repo> {
@@ -43,6 +58,7 @@ class GitHubClient(private val github: RestClient) {
 
     /** 코드 검색으로 TODO/FIXME 같은 마커가 든 파일을 찾는다. (기본 브랜치, 공개 레포) */
     fun searchCode(repoFullName: String, term: String, limit: Int): List<CodeHit> {
+        throttleCodeSearch() // 코드검색은 분당 ~10회 제한이라 호출 간격을 벌린다
         val q = "\"$term\" repo:$repoFullName"
         return try {
             github.get()
