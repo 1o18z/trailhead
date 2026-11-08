@@ -62,6 +62,10 @@ data class TrailheadProperties(
         val baseBranch: String = "main",
         /** 한 번 실행에서 만들 신규 PR 최대 개수 */
         val maxPerRun: Int = 10,
+        /** 동시에 열려 있을 수 있는 미검토 후보 PR 상한. 이만큼 쌓이면 신규 생성 중단 */
+        val maxOpen: Int = 5,
+        /** true 면 한 레포당 열린 후보 PR 1개로 제한 (비슷한 제안 난립 방지) */
+        val onePerRepo: Boolean = true,
         /** 제안 브랜치 접두사 */
         val branchPrefix: String = "proposal",
         /** 제안 파일을 담을 디렉터리 */
