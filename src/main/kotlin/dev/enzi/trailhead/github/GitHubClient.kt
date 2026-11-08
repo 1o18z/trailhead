@@ -214,6 +214,18 @@ class GitHubClient(private val github: RestClient) {
         null
     }
 
+    /** 열린 PR 목록 (head 브랜치·본문 포함, 최대 100). 백로그 상한 판정용. */
+    fun listOpenPulls(owner: String, repo: String): List<PullResponse> = try {
+        github.get()
+            .uri { b -> b.path("/repos/{o}/{r}/pulls").queryParam("state", "open").queryParam("per_page", 100).build(owner, repo) }
+            .retrieve()
+            .body(Array<PullResponse>::class.java)
+            ?.toList() ?: emptyList()
+    } catch (e: RestClientResponseException) {
+        log.warn("listOpenPulls 실패 [{}/{}]: {}", owner, repo, e.statusCode)
+        emptyList()
+    }
+
     /** 이슈/PR 에 코멘트를 남긴다. */
     fun addComment(owner: String, repo: String, number: Int, body: String): Boolean = try {
         github.post()

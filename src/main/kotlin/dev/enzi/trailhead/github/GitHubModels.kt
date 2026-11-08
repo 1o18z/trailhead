@@ -95,4 +95,10 @@ data class PullResponse(
     val number: Int = 0,
     @JsonProperty("html_url") val htmlUrl: String = "",
     val body: String? = null,
+    val head: PullRef? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class PullRef(
+    val ref: String = "",
 )
