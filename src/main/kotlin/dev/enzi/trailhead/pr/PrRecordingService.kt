@@ -47,13 +47,27 @@ class PrRecordingService(
             return RecordResult(enabled = true, created = 0, skippedExisting = 0, prUrls = emptyList())
         }
 
+        // 백로그 상한: 현재 열린(미검토) 후보 PR 이 상한에 다다르면 신규 생성을 멈춘다.
+        val openCandidates = client.listOpenPulls(owner, repo)
+            .filter { it.head?.ref?.startsWith("${cfg.branchPrefix}/") == true }
+        val openRepos = openCandidates.mapNotNull { repoFromBody(it.body) }.toMutableSet()
+        val budget = minOf(cfg.maxPerRun, cfg.maxOpen - openCandidates.size).coerceAtLeast(0)
+        if (budget <= 0) {
+            log.info("열린 후보 PR {}개 ≥ 상한 {} — 신규 생성 중단", openCandidates.size, cfg.maxOpen)
+            return RecordResult(enabled = true, created = 0, skippedExisting = 0, prUrls = emptyList())
+        }
+        log.info("열린 후보 PR {}개 / 상한 {} → 이번 실행 생성 예산 {}개", openCandidates.size, cfg.maxOpen, budget)
+
         var created = 0
         var skipped = 0
         val urls = ArrayList<String>()
 
         for (p in proposals) {
-            if (created >= cfg.maxPerRun) break
+            if (created >= budget) break
             if (p.status != ProposalStatus.NEW) { skipped++; continue }
+
+            // 레포당 열린 후보 PR 1개로 제한: 이미 열린 게 있거나 이번 실행에서 만든 레포는 건너뜀
+            if (cfg.onePerRepo && p.repoFullName in openRepos) { skipped++; continue }
 
             val slug = slug(p.id)
             val branch = "${cfg.branchPrefix}/$slug"
@@ -78,6 +92,7 @@ class PrRecordingService(
                 repository.save(p)
                 urls += url
                 created++
+                if (cfg.onePerRepo) openRepos += p.repoFullName
                 log.info("PR 생성: {}", url)
             }
         }
@@ -140,6 +155,12 @@ class PrRecordingService(
         append("\n## 설명\n\n").append(p.detail).append("\n")
         appendChange(contrib)
     }
+
+    /** 후보 PR 본문의 `<!-- trailhead-id: owner/repo:... -->` 에서 대상 레포("owner/repo")를 뽑는다. */
+    private fun repoFromBody(body: String?): String? =
+        body?.let { Regex("<!--\\s*trailhead-id:\\s*(.*?)\\s*-->").find(it)?.groupValues?.get(1) }
+            ?.substringBefore(":")
+            ?.takeIf { it.contains("/") }
 
     /** dedupKey → 브랜치/파일에 쓸 안정적 슬러그 (길이 제한 + 해시로 충돌 방지) */
     private fun slug(id: String): String {
