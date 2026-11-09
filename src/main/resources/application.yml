@@ -40,7 +40,8 @@ trailhead:
     todo-enabled: true
     dependency-enabled: true
     code-smell-enabled: true
-    ci-enabled: true
+    # 실패 CI/테스트는 기여 조건에서 제외 (봇·인프라·플래키가 대부분)
+    ci-enabled: false
     todo-markers:
       - TODO
       - FIXME

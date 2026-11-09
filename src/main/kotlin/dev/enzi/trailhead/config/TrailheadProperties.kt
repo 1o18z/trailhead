@@ -37,7 +37,8 @@ data class TrailheadProperties(
         val todoEnabled: Boolean = true,
         val dependencyEnabled: Boolean = true,
         val codeSmellEnabled: Boolean = true,
-        val ciEnabled: Boolean = true,
+        /** 실패 CI/테스트는 외부에서 고칠 수 없는 경우(봇·인프라·플래키)가 대부분이라 기여 조건에서 제외 */
+        val ciEnabled: Boolean = false,
         /** 코드 내에서 찾을 마커 */
         val todoMarkers: List<String> = listOf("TODO", "FIXME", "HACK", "XXX"),
         /** 레포당 신호 종류별 최대 수집 개수 (API 절약) */
