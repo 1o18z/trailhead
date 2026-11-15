@@ -39,7 +39,8 @@ trailhead:
   signals:
     todo-enabled: true
     dependency-enabled: true
-    code-smell-enabled: true
+    # 과대 파일 분할은 '파일이 크다'는 약한 휴리스틱 → 기여가치 낮아 제외
+    code-smell-enabled: false
     # 실패 CI/테스트는 기여 조건에서 제외 (봇·인프라·플래키가 대부분)
     ci-enabled: false
     todo-markers:
