@@ -53,13 +53,28 @@ class TodoCollector(
         else -> Tier.LOW
     }
 
+    /** 우리가 손댈 수 있는 '로직 소스'인가 — 테스트·생성물·vendored(번들된 남의 코드)는 제외 */
     private fun isSourceFile(path: String): Boolean {
         val lower = path.lowercase()
-        return SOURCE_EXT.any { lower.endsWith(it) } && NON_SOURCE_HINT.none { lower.contains(it) }
+        if (SOURCE_EXT.none { lower.endsWith(it) }) return false
+        if (NON_SOURCE_HINT.any { lower.contains(it) }) return false
+        // 버전 박힌 파일명(sockjs-0.3.4.js 등)은 거의 항상 번들된 서드파티 라이브러리 → 제외
+        val baseName = lower.substringAfterLast('/')
+        if (VERSIONED_FILE.containsMatchIn(baseName)) return false
+        return true
     }
 
     companion object {
         private val SOURCE_EXT = listOf(".kt", ".java", ".js", ".ts", ".tsx", ".py", ".go", ".rb", ".cs", ".scala")
-        private val NON_SOURCE_HINT = listOf("/test/", "/tests/", "generated", ".min.", "/vendor/", "/node_modules/")
+
+        // 손댈 '로직'이 아닌 것들: 테스트/벤더/서드파티/생성물/번들/데이터바인딩 등
+        private val NON_SOURCE_HINT = listOf(
+            "/test/", "/tests/", "generated", ".min.", ".bundle.", "/vendor/", "/node_modules/",
+            "/third_party/", "/third-party/", "/svg/", "/build/", "/dist/", "/deps/",
+            "databinding", "/proto/", "_pb.", ".pb.", "/fixtures/", "/testdata/", "/assets/",
+        )
+
+        // 파일명에 `-0.3.4` / `-v1.2` 같은 버전이 박힌 건 번들 라이브러리 신호
+        private val VERSIONED_FILE = Regex("""-v?\d+\.\d+(\.\d+)*""", RegexOption.IGNORE_CASE)
     }
 }
