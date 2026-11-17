@@ -22,6 +22,7 @@ class TodoCollector(
     override fun name() = "todo-marker"
 
     override fun collect(repo: Repo): List<RawSignal> {
+        val (owner, name) = repo.ownerAndName() ?: return emptyList()
         // 어차피 품질 게이트에서 버려질 LOW 마커(TODO/XXX)는 검색하지 않는다 (API 절약 + rate limit 완화)
         val markers = props.signals.todoMarkers.filter { tierFor(it) != Tier.LOW }
         if (markers.isEmpty()) return emptyList()
@@ -30,6 +31,8 @@ class TodoCollector(
             client.searchCode(repo.fullName, marker, perMarker)
                 // 데이터/설정 파일(.acl, .txt 등)의 우연한 매치 제외 — 코드 주석만 노림
                 .filter { isSourceFile(it.path) }
+                // 마커 주석을 실제로 읽어, 외부 기여자가 못 고치는 마커(blocked/복사/수사의문)는 버림
+                .filter { markerActionable(owner, name, it.path, marker) }
                 .map { hit ->
                 val tier = tierFor(marker)
                 RawSignal(
@@ -51,6 +54,34 @@ class TodoCollector(
     private fun tierFor(marker: String): Tier = when (marker.uppercase()) {
         "FIXME", "HACK" -> Tier.MEDIUM
         else -> Tier.LOW
+    }
+
+    /**
+     * 마커 주석을 실제로 읽어 '외부 기여자가 지금 고칠 수 있는가'를 본다.
+     * 파일을 못 읽으면(권한·404 등) 보수적으로 통과시켜 기존 동작을 유지한다.
+     *  - 통째로 복사해 온 외부 코드(출처 표기 있음) → 제외
+     *  - 마커 줄이 전부 blocked(이슈/PR 링크·조건절)·수사의문문이면 → 제외
+     */
+    private fun markerActionable(owner: String, name: String, path: String, marker: String): Boolean {
+        val content = client.getFileContent(owner, name, path) ?: return true
+        if (COPIED_HINT.any { content.contains(it, ignoreCase = true) }) return false
+        val markerLines = content.lineSequence().filter { it.contains(marker, ignoreCase = true) }.toList()
+        if (markerLines.isEmpty()) return true // 검색은 맞았는데 라인 매칭 실패(희귀): 통과
+        return markerLines.any { isActionableLine(it) }
+    }
+
+    /** 이 마커 한 줄이 '지금 고칠 수 있는' 것인지 */
+    private fun isActionableLine(line: String): Boolean {
+        val l = line.lowercase()
+        // 외부 이슈/PR 링크가 걸린 마커 = 그 외부 변경이 풀려야 함(blocked)
+        if (ISSUE_LINK.containsMatchIn(line)) return false
+        // 조건부·보류 표현("~되면/~된 후에 제거하라") = 외부 기여자가 지금 못 함
+        if (BLOCKED_HINT.any { l.contains(it) }) return false
+        // 수사 의문문("아직 필요한가?") = 명확한 결함 아님, 고위험 → 제외
+        if (l.contains("still needed") || l.contains("still required") ||
+            (l.contains("?") && (l.contains("needed") || l.contains("necessary")))
+        ) return false
+        return true
     }
 
     /** 우리가 손댈 수 있는 '로직 소스'인가 — 테스트·생성물·vendored(번들된 남의 코드)는 제외 */
@@ -76,5 +107,20 @@ class TodoCollector(
 
         // 파일명에 `-0.3.4` / `-v1.2` 같은 버전이 박힌 건 번들 라이브러리 신호
         private val VERSIONED_FILE = Regex("""-v?\d+\.\d+(\.\d+)*""", RegexOption.IGNORE_CASE)
+
+        // 마커에 외부 이슈/PR 링크가 걸림 = 그 변경이 머지돼야 풀리는 blocked 신호
+        private val ISSUE_LINK = Regex("""github\.com/[^\s)]+/(?:pull|issues)/\d+""", RegexOption.IGNORE_CASE)
+
+        // 조건부·보류("~되면/~된 뒤에 제거") 표현 — 외부 기여자가 지금 손 못 댐
+        private val BLOCKED_HINT = listOf(
+            "remove this when", "remove when", "remove once", "remove after",
+            "when we use", "once we", "after we ", "until we", "when upgraded", "after upgrade",
+            "blocked by", "waiting on", "waiting for", "depends on ", "pending ",
+        )
+
+        // 통째로 복사해 온 외부 코드라는 명시적 출처 표기 — 이 레포가 고칠 대상 아님
+        private val COPIED_HINT = listOf(
+            "copied from", "ported from", "adapted from", "taken from", "originally from",
+        )
     }
 }
