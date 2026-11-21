@@ -65,9 +65,22 @@ class TodoCollector(
     private fun markerActionable(owner: String, name: String, path: String, marker: String): Boolean {
         val content = client.getFileContent(owner, name, path) ?: return true
         if (COPIED_HINT.any { content.contains(it, ignoreCase = true) }) return false
+        if (isForeignLicensedCopy(owner, content)) return false
         val markerLines = content.lineSequence().filter { it.contains(marker, ignoreCase = true) }.toList()
         if (markerLines.isEmpty()) return true // 검색은 맞았는데 라인 매칭 실패(희귀): 통과
         return markerLines.any { isActionableLine(it) }
+    }
+
+    /**
+     * 파일 상단 헤더가 '다른 재단의 라이선스'를 달고 있으면 외부에서 통째로 가져온 복사본으로 본다.
+     * (예: glide 안의 Apache Harmony BufferedInputStream — ASF 헤더를 달고 있음)
+     * 단, 대상 레포가 그 재단 소속이면 자기 코드일 수 있으니 소유자를 제외한다(오탐 방지).
+     */
+    private fun isForeignLicensedCopy(owner: String, content: String): Boolean {
+        val head = content.take(1500).lowercase()
+        return FOREIGN_LICENSE.any { (phrase, foundationOwner) ->
+            head.contains(phrase) && !owner.equals(foundationOwner, ignoreCase = true)
+        }
     }
 
     /** 이 마커 한 줄이 '지금 고칠 수 있는' 것인지 */
@@ -121,6 +134,14 @@ class TodoCollector(
         // 통째로 복사해 온 외부 코드라는 명시적 출처 표기 — 이 레포가 고칠 대상 아님
         private val COPIED_HINT = listOf(
             "copied from", "ported from", "adapted from", "taken from", "originally from",
+        )
+
+        // 파일 헤더의 '외부 재단에 저작권을 귀속'시키는 보일러플레이트 → 복사본 신호.
+        // (프로젝트가 자기 코드에 흔히 쓰는 일반 라이선스(MIT/EPL 등)는 제외 — 오탐 방지)
+        // (phrase, 그 재단의 GitHub owner=예외: 해당 재단 레포면 자기 코드일 수 있음)
+        private val FOREIGN_LICENSE = listOf(
+            "licensed to the apache software foundation" to "apache",
+            "this file is part of the gnu" to "gnu",
         )
     }
 }
